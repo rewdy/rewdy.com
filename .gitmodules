@@ -1,0 +1,6 @@
+[submodule "sites/all/libraries/ckeditor"]
+	path = sites/all/libraries/ckeditor
+	url = git://github.com/ckeditor/ckeditor-releases.git
+[submodule "sites/all/themes/fitadmin"]
+	path = sites/all/themes/fitadmin
+	url = https://bitbucket.org/rewdy/fitadmin.git

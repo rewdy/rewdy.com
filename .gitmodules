@@ -4,3 +4,6 @@
 [submodule "sites/all/themes/fitadmin"]
 	path = sites/all/themes/fitadmin
 	url = https://bitbucket.org/rewdy/fitadmin.git
+[submodule "sites/all/themes/bryce"]
+	path = sites/all/themes/bryce
+	url = https://github.com/rewdy/bryce.git

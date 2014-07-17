@@ -1,6 +1,0 @@
-name = Font-Awesome Icons
-description = Integrates the <a href="http://fortawesome.github.io/Font-Awesome/">Font-Awesome</a> icons into Drupal via the <a href="http://drupal.org/project/icon">Icon API</a> module.
-core = 7.x
-configure = admin/config/media/icons
-package = Icon Provider
-dependencies[] = icon

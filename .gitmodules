@@ -7,3 +7,6 @@
 [submodule "sites/all/themes/bryce"]
 	path = sites/all/themes/bryce
 	url = https://github.com/rewdy/bryce.git
+[submodule "sites/all/themes/alfie"]
+	path = sites/all/themes/alfie
+	url = git@github.com:rewdy/Alfie.git

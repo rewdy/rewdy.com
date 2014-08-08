@@ -1,12 +1,12 @@
 [submodule "sites/all/libraries/ckeditor"]
 	path = sites/all/libraries/ckeditor
 	url = git://github.com/ckeditor/ckeditor-releases.git
-[submodule "sites/all/themes/fitadmin"]
-	path = sites/all/themes/fitadmin
-	url = https://bitbucket.org/rewdy/fitadmin.git
 [submodule "sites/all/themes/bryce"]
 	path = sites/all/themes/bryce
 	url = https://github.com/rewdy/bryce.git
 [submodule "sites/all/themes/alfie"]
 	path = sites/all/themes/alfie
 	url = git@github.com:rewdy/Alfie.git
+[submodule "sites/all/themes/sevenish"]
+	path = sites/all/themes/sevenish
+	url = https://github.com/rewdy/sevenish.git

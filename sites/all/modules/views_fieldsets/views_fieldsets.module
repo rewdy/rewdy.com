@@ -6,25 +6,81 @@
  */
 
 /**
+ * @todo
+ * - Use `attributes_array` only, no separate `classes_array`
+ * - Make display type pluggable
+ * - Clean up preprocessors
+ * - Update api.php, suggestion examples, hook examples etc
+ */
+
+/**
  * Implements hook_theme().
  */
 function views_fieldsets_theme() {
+  $path = drupal_get_path('module', 'views_fieldsets') . '/templates';
   return array(
+    // Views edit form override.
     'views_fieldsets_rearrange_form' => array(
       'render element' => 'form',
     ),
+
+    // Fieldset types.
     'views_fieldsets_fieldset' => array(
-      'variables' => array('fieldset' => '', 'content' => ''),
+      'views_fieldsets_label' => '<fieldset><legend>',
+      'variables' => array('fieldset_fields' => array(), 'legend' => ''),
       'template' => 'views-fieldsets-fieldset',
+      'path' => $path,
+    ),
+    'views_fieldsets_div' => array(
+      'views_fieldsets_label' => '<div>',
+      'variables' => array('fieldset_fields' => array()),
+      'template' => 'views-fieldsets-div',
+      'path' => $path,
+    ),
+    'views_fieldsets_details' => array(
+      'views_fieldsets_label' => '<details><summary>',
+      'variables' => array('fieldset_fields' => array(), 'legend' => ''),
+      'template' => 'views-fieldsets-details',
+      'path' => $path,
     ),
   );
 }
 
 /**
- * Implements hook_form_alter().
+ * Implements hook_theme_registry_alter().
  */
-function views_fieldsets_form_alter($form, $form_state, $form_id) {
-  //drupal_set_message($form_id);
+function views_fieldsets_theme_registry_alter(&$registry) {
+  foreach ($registry as $hook => &$info) {
+    // Splice in our generic preprocessor for all fieldset types.
+    if (strpos($hook, 'views_fieldsets_') === 0 && isset($info['views_fieldsets_label'])) {
+      // It must come directly after 'template_preprocess', or first if that doesn't exist.
+      $index = array_search('template_preprocess', $info['preprocess functions']);
+      if ($index !== FALSE) {
+        array_splice($info['preprocess functions'], $index+1, 0, '_template_preprocess_views_fieldsets');
+      }
+      else {
+        array_unshift($info['preprocess functions'], '_template_preprocess_views_fieldsets');
+      }
+    }
+
+    unset($info);
+  }
+}
+
+/**
+ * Find all eligible fieldset theme hooks.
+ */
+function _views_fieldsets_types() {
+  $registry = theme_get_registry();
+
+  $types = array();
+  foreach ($registry as $hook => $info) {
+    if (strpos($hook, 'views_fieldsets_') === 0 && isset($info['views_fieldsets_label'])) {
+      $types[ substr($hook, 16) ] = $info['views_fieldsets_label'];
+    }
+  }
+
+  return $types;
 }
 
 /**
@@ -48,6 +104,17 @@ function views_fieldsets_preprocess_views_view_fields__2(&$vars) {
 
   $fieldsets = views_fieldsets_field_options_to_fieldsets_1d($fields);
   if ($fieldsets && array_filter($fieldsets)) {
+    // Fix separators.
+    $last_in_fieldset = FALSE;
+    foreach ($vars['fields'] as $id => $object) {
+      $in_fieldset = views_fieldsets_field_is_in_fieldset($id, $display_handler);
+      if (@$object->separator && !$in_fieldset && $last_in_fieldset) {
+        $object->separator = '';
+      }
+
+      $last_in_fieldset = $in_fieldset;
+    }
+
     // Add collapse.js for actual fieldsets.
     drupal_add_js('misc/collapse.js');
     drupal_add_js('misc/form.js');
@@ -90,6 +157,7 @@ function views_fieldsets_preprocess_views_view_fields__2(&$vars) {
 function views_fieldsets_render__simple($fields, $vars) {
   $display_handler = $vars['view']->display_handler;
   $views_field = $vars['view']->field[$vars['fieldset_field']];
+  $views_field_options = $views_field->options;
   $hide_empty = !empty($views_field->options['hide_empty']);
   $hierarchy = $vars['hierarchy'];
 
@@ -121,9 +189,19 @@ function views_fieldsets_render__simple($fields, $vars) {
     }
   }
 
-  if ($content || !$hide_empty) {
+  $is_empty = TRUE;
+  foreach ($content as $field) {
+    if (!$field->is_fieldset || !empty($field->content)) {
+      $is_empty = FALSE;
+      break;
+    }
+  }
+
+  if (!$is_empty || !$hide_empty) {
     $vars['fieldset_fields'] = $content;
-    $theme_hook_suggestions = views_theme_functions('views_fieldsets_fieldset', $vars['view'], $display_handler->display);
+    $html_tag = $views_field_options['fieldset']['type'];
+    unset($vars['theme_hook_suggestion'], $vars['theme_hook_suggestions']);
+    $theme_hook_suggestions = views_theme_functions('views_fieldsets_' . $html_tag, $vars['view'], $display_handler->display);
     $output = theme($theme_hook_suggestions, $vars);
     $output .= "\n";
   }
@@ -135,19 +213,15 @@ function views_fieldsets_render__simple($fields, $vars) {
 }
 
 /**
- * Default preprocessor for views_fieldsets_fieldset.
+ * Default preprocessor for all views_fieldsets_TYPE tpls.
  */
-function template_preprocess_views_fieldsets_fieldset(&$vars) {
+function _template_preprocess_views_fieldsets(&$vars) {
   $view = $vars['view'];
   $hierarchy = $vars['hierarchy'];
   $fieldset_field = $vars['fieldset_field'];
   $info_field = $hierarchy['fields'][$fieldset_field];
   $views_field = $vars['fields'][$fieldset_field];
   $views_field_options = $views_field->handler->options;
-
-  // HTML tags.
-  $vars['tag'] = $views_field_options['fieldset']['type'];
-  $vars['legend_tag'] = $vars['tag'] == 'fieldset' ? 'legend' : '';
 
   // CSS classes.
   $classes = $views_field->handler->tokenize_value($views_field_options['fieldset']['classes'], $view->row_index);
@@ -187,8 +261,26 @@ function template_preprocess_views_fieldsets_fieldset(&$vars) {
 /**
  * Implements hook_form_FORM_ID_alter() for views_ui_edit_form().
  */
-function views_fieldsets_form_views_ui_edit_form_alter($form, $form_state, $form_id = 'views_ui_edit_form') {
-  drupal_add_css(drupal_get_path('module', 'views_fieldsets') . '/views_fieldsets.css');
+function views_fieldsets_form_views_ui_edit_form_alter($form, $form_state) {
+  drupal_add_css(drupal_get_path('module', 'views_fieldsets') . '/css/views_fieldsets.css');
+}
+
+/**
+ * Implements hook_form_views_ui_edit_display_form_alter().
+ */
+function views_fieldsets_form_views_ui_edit_display_form_alter(&$form, &$form_state) {
+  $view = $form_state['view'];
+
+  if ($form_state['section'] == 'analyze-theme') {
+    $funcs = array();
+    foreach (array('fieldset', 'div', 'details') as $tag) {
+      $theme_hook_suggestions = views_theme_functions('views_fieldsets_' . $tag, $view, $view->display_handler->display);
+      $funcs[] = $view->display_handler->option_link(t('Views fieldsets @tag', array('@tag' => '<' . $tag . '>')), 'analyze-theme-fieldsets-' . $tag) . ': '  . $view->display_handler->format_themes($theme_hook_suggestions);
+    }
+    $html = theme('item_list', array('items' => $funcs));
+
+    $form['options']['analysis']['#markup'] .= $html;
+  }
 }
 
 /**
@@ -255,6 +347,27 @@ function views_fieldsets_name_is_fieldset($field_name) {
 function views_fieldsets_field_is_fieldset($field_name, $display_handler) {
   $handler = $display_handler->get_handler('field', $field_name);
   return $handler instanceof views_fieldsets_fieldset_field_handler;
+}
+
+/**
+ * Helper to ...
+ *
+ * Establishes whether a field is IN a Views Fieldsets field.
+ */
+function views_fieldsets_field_is_in_fieldset($field_name, $display_handler) {
+  if (!@$display_handler->_fieldsets) {
+    $display_handler->_fieldsets = array_filter($display_handler->handlers['field'], function($handler) {
+      return $handler instanceof views_fieldsets_fieldset_field_handler;
+    });
+  }
+
+  foreach ($display_handler->_fieldsets as $fieldset) {
+    if (in_array($field_name, $fieldset->options['children'])) {
+      return TRUE;
+    }
+  }
+
+  return FALSE;
 }
 
 /**
@@ -489,5 +602,6 @@ function theme_views_fieldsets_rearrange_form($variables) {
 function views_fieldsets_views_api() {
   return array(
     'version' => 3,
+    'path' => drupal_get_path('module', 'views_fieldsets') . '/includes',
   );
 }
